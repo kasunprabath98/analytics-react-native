@@ -1,9 +1,6 @@
 import {
   DestinationPlugin,
-  IdentifyEventType,
   PluginType,
-  TrackEventType,
-  SegmentAdjustSettings,
   SegmentAPISettings,
   UpdateType,
 } from '@segment/analytics-react-native';
@@ -16,29 +13,28 @@ export class AdjustPlugin extends DestinationPlugin {
   type = PluginType.destination;
   key = 'Adjust';
 
-  private settings: SegmentAdjustSettings | null = null;
+  private settings: SegmentAPISettings | null = null;
   private hasRegisteredCallback = false;
 
-  update(settings: SegmentAPISettings, _: UpdateType) {
-    const adjustSettings = settings.integrations[
-      this.key
-    ] as SegmentAdjustSettings;
+  // V5 uses `initialize` and `update` method names
+  initialize(settings: SegmentAPISettings) {
+    this.update(settings);
+  }
 
-    if (adjustSettings === undefined || adjustSettings === null) {
+  update(settings: SegmentAPISettings) {
+    const adjustSettings = settings.integrations?.[this.key];
+
+    if (!adjustSettings) {
       return;
     }
 
     this.settings = adjustSettings;
 
-    const environment =
-      this.settings.setEnvironmentProduction === true
-        ? 'production'
-        : 'sandbox';
-
+    const environment = this.settings.setEnvironmentProduction ? 'production' : 'sandbox';
     const adjustConfig = new AdjustConfig(this.settings.appToken, environment);
 
-    if (this.hasRegisteredCallback === false) {
-      adjustConfig.setAttributionCallbackListener((attribution) => {
+    if (!this.hasRegisteredCallback) {
+      adjustConfig.setAttributionCallback((attribution) => {
         const trackPayload = {
           provider: 'Adjust',
           trackerToken: attribution.trackerToken,
@@ -56,21 +52,17 @@ export class AdjustPlugin extends DestinationPlugin {
       this.hasRegisteredCallback = true;
     }
 
-    const bufferingEnabled = this.settings.setEventBufferingEnabled;
-    if (bufferingEnabled === true) {
-      adjustConfig.setEventBufferingEnabled(bufferingEnabled);
-    }
-
     const useDelay = this.settings.setDelay;
-    if (useDelay === true) {
+    if (useDelay) {
       const delayTime = this.settings.delayTime;
-      if (delayTime !== null && delayTime !== undefined) {
+      if (delayTime != null) {
         adjustConfig.setDelayStart(delayTime);
       }
     }
 
     Adjust.create(adjustConfig);
   }
+
   identify(event: IdentifyEventType) {
     identify(event);
     return event;
@@ -85,3 +77,4 @@ export class AdjustPlugin extends DestinationPlugin {
     reset();
   }
 }
+
